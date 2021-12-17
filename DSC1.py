@@ -3,6 +3,7 @@
 All the functions used by the scripts correction1 are stored in this python file. 
 File created on december 2018 by Leonardo Chiappisi
 """
+
 import numpy as np
 #import pandas as pd
 import os
@@ -13,7 +14,7 @@ from scipy.stats import linregress
 
 encodings = [ 'utf-8', 'utf-16', 'latin1', 'cp1252']
 header_heating = dict() #Dictionary containing the headers of the exported heating files
-header_cooling = dict() #Dictionary containing the headers of the exported cooling files
+header_cooling = {}
 
 def write_header(header_heating, header_cooling, files):
     for i in files['S_heating']:
@@ -336,8 +337,8 @@ def binning(data, params):
     ''' Function which bins the data array. width points are averaged and an array of length original length//width is retuned.
     No binning is performed when the binsize is smaller or equal to 1. Heatrate is also calculated if the time-temperature data are available. 
     Before binning, if the original file is not a multiple of width, the exceeding points are dropped. '''
-    width = int(params['bins'])
     if int(params['bins']) > 1:
+        width = int(params['bins'])
         data_binned = np.vstack(([data[i,:(data[i,:].size // width) * width].reshape(-1, width).mean(axis=1) for i in range(len(data[:,0]))]))
         stdev = np.std(data[2,:(data[2,:].size // width) * width].reshape(-1, width), axis=1) #standard deviation of binned points. 
     else:
@@ -359,9 +360,9 @@ def check_data(data, files, params):
     print(15*'*', 'File Check', 15*'*')
     W_counter = 0 #counts warnings
     D_counter = 0 #counts number of rejected files
-    
 
-    
+
+
     for key in files:  
         for i in files[key]:
 #veryfies that the heating files are really a heating file. If not, program stops.             
@@ -373,7 +374,7 @@ def check_data(data, files, params):
                 hr, hrstd = data[i][4,:].mean()*60, data[i][4,:].std()*60
                 if 'S_heating' in key:
                  header_heating[i] += '# Heating rate = {:.2f} K/min. \n'.format(hr)
-                
+
                 if hrstd/hr > 0.02:
                     W_counter += 1
                     print('Warning {}: the heatrate is not constant and varies by {:.2g}% for file {}.'.format(W_counter, hrstd/hr*100, i))
@@ -384,12 +385,10 @@ and is not consistent with the one provided in the input parameter file of {:.2g
                 else:
                     print('Heat rate of {:.2g} K/min in file {} consistent with parameter input file.'.format(hr, i))
 #veryfies that the buffer and empty cell measurements are identical, i.e., do not differ by more than 5%. 
-                    
 #veryfies that the cooling files are really a heating file. If not, program stops.                
             if 'cooling' in key:
                 if (data[i][1,1] < data[i][1,-1]):
                     raise Exception('Error: {} is not a cooling file!'.format(i))
-                    
 #Verification for a constant heatrate and if it is consistent with the one provided in parameter file. 
                 hr, hrstd = data[i][4,:].mean()*60, data[i][4,:].std()*60
                 if 'S_cooling' in key:
@@ -404,35 +403,38 @@ and is not consistent with the one provided in the input parameter file of {:.2g
                     W_counter += 1
                 else:
                     print('Heat rate of {:.2g} K/min in file {} consistent with parameter input file.'.format(hr, i))
-
 #Eliminates all the files which do not cover the region of interest. 
     print('\n')
     for key in files:  
-        for i in files[key]:           
+        for i in files[key]:   
             minT, maxT = np.min(data[i][1,:]), np.max(data[i][1,:])
-            if 'cooling' in key:
-                if minT-1.0 > float(params['ROI_c'][0]) or maxT+1.0 < float(params['ROI_c'][1]):
-                    D_counter += 1
-                    print('Error: temperature range of file {} does not cover the region of interest!'.format(i))
-                    print('Requested range is {} -- {}. File covers range {} -- {}.'.format(float(params['ROI_c'][0]), float(params['ROI_c'][1]), minT, maxT))
-                    print('File {} will be ignored in all successive calculations.'.format(i))
-                    del data[i]
-                    files[key].remove(i)
-            if 'heating' in key:
-                if minT-1.0 > float(params['ROI_h'][0]) or maxT+1.0 < float(params['ROI_h'][1]):
-                    D_counter += 1
-                    print('Error: temperature range of file {} does not cover the region of interest!'.format(i))
-                    print('Requested range is {} -- {}. File covers range {} -- {}.'.format(float(params['ROI_h'][0]), float(params['ROI_h'][1]), minT, maxT))
-                    print('File {} will be ignored in all successive calculations.'.format(i))
-                    del data[i]
-                    files[key].remove(i)
+            if 'cooling' in key and (
+                minT - 1.0 > float(params['ROI_c'][0])
+                or maxT + 1.0 < float(params['ROI_c'][1])
+            ):
+                D_counter += 1
+                print('Error: temperature range of file {} does not cover the region of interest!'.format(i))
+                print('Requested range is {} -- {}. File covers range {} -- {}.'.format(float(params['ROI_c'][0]), float(params['ROI_c'][1]), minT, maxT))
+                print('File {} will be ignored in all successive calculations.'.format(i))
+                del data[i]
+                files[key].remove(i)
+            if 'heating' in key and (
+                minT - 1.0 > float(params['ROI_h'][0])
+                or maxT + 1.0 < float(params['ROI_h'][1])
+            ):
+                D_counter += 1
+                print('Error: temperature range of file {} does not cover the region of interest!'.format(i))
+                print('Requested range is {} -- {}. File covers range {} -- {}.'.format(float(params['ROI_h'][0]), float(params['ROI_h'][1]), minT, maxT))
+                print('File {} will be ignored in all successive calculations.'.format(i))
+                del data[i]
+                files[key].remove(i)
 
     print('\n')
 #Checks weather the heating files have all the same length.
     len_h =  list(filter(None, [[np.shape(data[i])[1] for i in files[key]] for key in files if 'heating' in key])) #creates a list with the lengths of the heating runs
     len_h_flatten = [item for sublist in len_h for item in sublist]
-        
-    if len(len_h_flatten) > 0:
+
+    if len_h_flatten:
         diff_h = (max(len_h_flatten) - min(len_h_flatten))/max(len_h_flatten)
         if diff_h == 0.0:
             print('All heating runs have the same length.')
@@ -443,11 +445,10 @@ and is not consistent with the one provided in the input parameter file of {:.2g
             print('Warning {}: Length of heating runs differs by more than {}%.'.format(W_counter, diff_h*100))
         else:
             raise Exception('Heating run lengths differ by more than 5% to be threated at the same time. Evaluate if analysing them separately.') 
-
 #Checks weather the cooling files have all the same length. 
     len_c =  list(filter(None, [[np.shape(data[i])[1] for i in files[key]] for key in files if 'cooling' in key]))
     len_c_flatten = [item for sublist in len_c for item in sublist]
-    if len(len_c_flatten) > 0:
+    if len_c_flatten:
         diff_c = (max(len_c_flatten) - min(len_c_flatten))/max(len_c_flatten)
         if diff_c == 0.0:
             print('All cooling runs have the same length.')
@@ -458,33 +459,31 @@ and is not consistent with the one provided in the input parameter file of {:.2g
             print('Warning {}: Length of cooling runs differs by more than {:.1g}%.'.format(W_counter, diff_c*100))
         else:
             raise Exception('Cooling run lengths differ by more than 5% to be threated at the same time. Evaluate if analysing them separately.') 
-
 #Checks that the peak is defined within the region of interest
     if float(params['ROP_h'][0]) < float(params['ROI_h'][0]) or float(params['ROP_h'][1]) >  float(params['ROI_h'][1]):
         raise Exception('Peak in heating run falls out of region of interest. Verify the regions of interest and the region of peak.')
     if float(params['ROP_c'][0]) <  float(params['ROI_c'][0]) or float(params['ROP_c'][1]) >  float(params['ROI_c'][1]):
         raise Exception('Peak in cooling run falls out of region of interest. Verify the regions of interest and the region of peak.')
-
 #Checks that there is a region available for the baseline integration before and after the region of interest
     if float(params['ROP_h'][0]) == float(params['ROI_h'][0]) or float(params['ROP_h'][1]) ==  float(params['ROI_h'][1]):
         raise Exception('No data availble for baseline integration. Verify the regions of interest and the region of peak.')
     if float(params['ROP_c'][0]) ==  float(params['ROI_c'][0]) or float(params['ROP_c'][1]) ==  float(params['ROI_c'][1]):
         raise Exception('No data availble for baseline integration. Verify the regions of interest and the region of peak.')
-            
+
     for key in header_heating:
         header_heating[key] += '# Data between {} and {} degC were analyzed. \n'.format(params['ROI_h'][0], params['ROI_h'][1])
         header_heating[key] += '# Peak is located between {} and {} degC. \n'.format(params['ROP_h'][0], params['ROP_h'][1])
     for key in header_cooling:
         header_cooling[key] += '# Data between {} and {} degC were analyzed. \n'.format(params['ROI_c'][0], params['ROI_c'][1])
         header_cooling[key] += '# Peak is located between {} and {} degC. \n'.format(params['ROP_c'][0], params['ROP_c'][1])
-        
+
     if W_counter == 0 and D_counter == 0:
         print('Check performed sucessfully. No errors encountered!')    
     else:
         print('\n', 5*'*', '{} Warnings have arisen during file check!'.format(W_counter), 5*'*')
         print(5*'*', '{} Files will be ignored in the calculations!'.format(D_counter), 5*'*')
-    
-    
+
+
     return None
     
     
@@ -549,7 +548,7 @@ def average_refs(data, files):
 def correction(data, refs, files, params):
     ''' Function which corrects the sample runs for the empty cells and the buffer buffer titrations. 
     If no reference files are provided, this function will simple return the sample raw data.'''
-    print(15*'*', 'Sample data correction', 15*'*')  
+    print(15*'*', 'Sample data correction', 15*'*')
     data_c = {}
 
     if np.shape(refs['EC_cooling'])[0]:
@@ -572,21 +571,20 @@ def correction(data, refs, files, params):
                    EC_interpol = tck_EC(data[i][1,:])
                    data_corrected = data[i][2,:] - EC_interpol #corrects the sample data for the empty cell measurement. 
                    data_c[i] = np.array([data[i][0,:], data[i][1,:], data_corrected, data[i][3,:], data[i][4,:]])
-    else: #if the empty cell was not measured
-        if np.shape(refs['B_cooling'])[0] and float(params['mass_bb']) > 0.0: #if buffer was measured
-            tck_B = interpolate.interp1d(refs['B_cooling'][1,:], refs['B_cooling'][2,:], fill_value='extrapolate')
-            for i in files['S_cooling']:
-                print('Correcting file {} for Buffer measurement'.format(i))
-                B_interpol = tck_B(data[i][1,:])  #linear interpolation of the heatflow of the buffer as a function of the temperature of the sample run.       
-                sf_c = (float(params['mass_s'][0])*(1.-float(params['s_wt'])) - float(params['mass_r']))/float(params['mass_bb'])
-                data_corrected = data[i][2,:] - B_interpol * sf_c  #corrects the data for the empty and for the buffer signal, calculated from the buffer-buffer experiment and reweighted for the buffer difference in sample and reference cell. 
-                data_c[i] = np.array([data[i][0,:], data[i][1,:], data_corrected, data[i][3,:], data[i][4,:]])
-        else: #if no empty cell nor buffer were measured. 
-            for i in files['S_cooling']:
-                print('File {} was not corrected for buffer or emty cell measurement'.format(i))
-                data_c[i] = np.array([data[i][0,:], data[i][1,:], data[i][2,:], data[i][3,:], data[i][4,:]])
-                
-    
+    elif np.shape(refs['B_cooling'])[0] and float(params['mass_bb']) > 0.0: #if buffer was measured
+        tck_B = interpolate.interp1d(refs['B_cooling'][1,:], refs['B_cooling'][2,:], fill_value='extrapolate')
+        for i in files['S_cooling']:
+            print('Correcting file {} for Buffer measurement'.format(i))
+            B_interpol = tck_B(data[i][1,:])  #linear interpolation of the heatflow of the buffer as a function of the temperature of the sample run.       
+            sf_c = (float(params['mass_s'][0])*(1.-float(params['s_wt'])) - float(params['mass_r']))/float(params['mass_bb'])
+            data_corrected = data[i][2,:] - B_interpol * sf_c  #corrects the data for the empty and for the buffer signal, calculated from the buffer-buffer experiment and reweighted for the buffer difference in sample and reference cell. 
+            data_c[i] = np.array([data[i][0,:], data[i][1,:], data_corrected, data[i][3,:], data[i][4,:]])
+    else: #if no empty cell nor buffer were measured. 
+        for i in files['S_cooling']:
+            print('File {} was not corrected for buffer or emty cell measurement'.format(i))
+            data_c[i] = np.array([data[i][0,:], data[i][1,:], data[i][2,:], data[i][3,:], data[i][4,:]])
+
+
     if np.shape(refs['EC_heating'])[0]:
         tck_EC = interpolate.interp1d(refs['EC_heating'][1,:], refs['EC_heating'][2,:], fill_value='extrapolate')
         if np.shape(refs['B_heating'])[0] and float(params['mass_bb']) > 0.0:
@@ -608,19 +606,18 @@ def correction(data, refs, files, params):
                    EC_interpol = tck_EC(data[i][1,:])
                    data_corrected = data[i][2,:] - EC_interpol*0.73 #corrects the sample data for the empty cell measurement. 
                    data_c[i] = np.array([data[i][0,:], data[i][1,:], data_corrected, data[i][3,:], data[i][4,:]])
-    else: #if the empty cell was not measured
-        if np.shape(refs['B_heating'])[0] and float(params['mass_bb']) > 0.0: #if buffer was measured
-            tck_B = interpolate.interp1d(refs['B_heating'][1,:], refs['B_heating'][2,:], fill_value='extrapolate')
-            for i in files['S_heating']:
-                print('Correcting file {} for Buffer measurement'.format(i))
-                B_interpol = tck_B(data[i][1,:])  #linear interpolation of the heatflow of the buffer as a function of the temperature of the sample run.       
-                sf_h = (float(params['mass_s'])*(1.-float(params['s_wt'])) - float(params['mass_r']))/float(params['mass_bb']) #scaling factor used for correcting heating sample run. 
-                data_corrected = data[i][2,:] - B_interpol * sf_h  #corrects the data for the empty and for the buffer signal, calculated from the buffer-buffer experiment and reweighted for the buffer difference in sample and reference cell. 
-                data_c[i] = np.array([data[i][0,:], data[i][1,:], data_corrected, data[i][3,:], data[i][4,:]])
-        else: #if no empty cell nor buffer were measured. 
-            for i in files['S_heating']:
-                print('File {} was not corrected for buffer or emty cell measurement'.format(i))
-                data_c[i] = np.array([data[i][0,:], data[i][1,:], data[i][2,:], data[i][3,:], data[i][4,:]])      
+    elif np.shape(refs['B_heating'])[0] and float(params['mass_bb']) > 0.0: #if buffer was measured
+        tck_B = interpolate.interp1d(refs['B_heating'][1,:], refs['B_heating'][2,:], fill_value='extrapolate')
+        for i in files['S_heating']:
+            print('Correcting file {} for Buffer measurement'.format(i))
+            B_interpol = tck_B(data[i][1,:])  #linear interpolation of the heatflow of the buffer as a function of the temperature of the sample run.       
+            sf_h = (float(params['mass_s'])*(1.-float(params['s_wt'])) - float(params['mass_r']))/float(params['mass_bb']) #scaling factor used for correcting heating sample run. 
+            data_corrected = data[i][2,:] - B_interpol * sf_h  #corrects the data for the empty and for the buffer signal, calculated from the buffer-buffer experiment and reweighted for the buffer difference in sample and reference cell. 
+            data_c[i] = np.array([data[i][0,:], data[i][1,:], data_corrected, data[i][3,:], data[i][4,:]])
+    else: #if no empty cell nor buffer were measured. 
+        for i in files['S_heating']:
+            print('File {} was not corrected for buffer or emty cell measurement'.format(i))
+            data_c[i] = np.array([data[i][0,:], data[i][1,:], data[i][2,:], data[i][3,:], data[i][4,:]])      
 
     return data_c
 
@@ -629,11 +626,11 @@ def correction(data, refs, files, params):
 def normalize_sampleruns(files, data, params):
     ''' Normalizes the samples for the sample mass, or eventually molar mass'''
     print('\n', 15*'*', 'Data normalization', 15*'*')
-    data_norm = dict()
+    data_norm = {}
     sample_norm = params['mass_s']*params['s_wt']/1000*1000   #Normalization factor given by the sample mass in grams and from mW to W
     if 'Mw' in params:
         sample_norm /= float(params['Mw'])  #if Mw is provided, the data will be normalized by the moles of compound. 
-    
+
     for i in files['S_heating']:
         hr = np.average(data[i][4,:])
         if 'Mw' in params:
@@ -642,7 +639,7 @@ def normalize_sampleruns(files, data, params):
             print('File {} is normalized by a heating rate of {:.2g} K/s, equivalent to {:.2f} K/min, and by {:.2e} grams of sample.'.format(i, hr, hr*60, sample_norm/1000))
         #print(i, np.average(data[i][4,:])*60)
         data_norm[i] = np.column_stack((data[i][1,:], data[i][2,:]/(hr*sample_norm)))
-    
+
     for i in files['S_cooling']:
         hr = -np.average(data[i][4,:])
         if 'Mw' in params:
